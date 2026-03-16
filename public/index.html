@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GovDoc AI — 정부사업 문서 자동생성</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --navy: #1B3A6B; --navy2: #0F2347; --blue: #2563A8; --blue2: #3B82F6;
+  --sky: #EFF6FF; --sky2: #DBEAFE; --teal: #0D7C6B; --teallt: #D1FAE5;
+  --gold: #D97706; --goldlt: #FEF3C7; --red: #DC2626; --green: #059669;
+  --w: #fff; --g50: #F8FAFC; --g100: #F1F5F9; --g200: #E2E8F0;
+  --g300: #CBD5E1; --g400: #94A3B8; --g500: #64748B; --g600: #475569;
+  --g700: #334155; --g800: #1E293B; --g900: #0F172A;
+  --r: 10px; --r2: 16px;
+  --sh: 0 2px 12px rgba(15,35,71,.09); --sh2: 0 6px 28px rgba(15,35,71,.14);
+}
+html { font-size: 14px; }
+body { font-family: 'Noto Sans KR', sans-serif; background: var(--g100); color: var(--g800); min-height: 100vh; }
+.app { display: flex; min-height: 100vh; }
+
+/* ── SIDEBAR ── */
+.sb { width: 230px; flex-shrink: 0; background: linear-gradient(180deg, var(--navy2), var(--navy) 60%, #1e4d8c); display: flex; flex-direction: column; min-height: 100vh; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.sb-logo { padding: 22px 18px 16px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.sb-logo .em { width: 40px; height: 40px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2); border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 10px; }
+.sb-logo h1 { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: -.3px; }
+.sb-logo p { font-size: 11px; color: rgba(255,255,255,.45); margin-top: 3px; line-height: 1.4; }
+.sb-sec { padding: 16px 12px 6px; }
+.sb-lbl { font-size: 9px; font-weight: 700; color: rgba(255,255,255,.35); letter-spacing: 1.5px; text-transform: uppercase; padding-left: 8px; margin-bottom: 8px; }
+.nav { display: flex; align-items: center; gap: 8px; padding: 9px 11px; border-radius: 9px; cursor: pointer; color: rgba(255,255,255,.6); font-size: 13px; font-weight: 500; transition: all .18s; margin-bottom: 2px; }
+.nav:hover { background: rgba(255,255,255,.1); color: #fff; }
+.nav.on { background: rgba(255,255,255,.15); color: #fff; font-weight: 700; }
+.nav .ic { font-size: 15px; flex-shrink: 0; }
+.nav .badge { margin-left: auto; background: var(--blue2); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 9px; }
+.nav.dim { opacity: .4; cursor: default; }
+.nav.dim:hover { background: none; color: rgba(255,255,255,.6); }
+.sb-ft { margin-top: auto; padding: 14px 16px; border-top: 1px solid rgba(255,255,255,.08); font-size: 10px; color: rgba(255,255,255,.25); line-height: 1.7; }
+
+/* ── CANVAS ── */
+.canvas { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 100vh; }
+.topbar { background: var(--w); border-bottom: 1px solid var(--g200); padding: 0 28px; height: 54px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; box-shadow: 0 1px 6px rgba(0,0,0,.05); position: sticky; top: 0; z-index: 50; }
+.tb-title { font-size: 15px; font-weight: 700; color: var(--navy); }
+.tb-sub { font-size: 11px; color: var(--g400); }
+.tb-tags { margin-left: auto; display: flex; gap: 6px; }
+.tag { display: inline-flex; align-items: center; gap: 3px; padding: 3px 10px; border-radius: 16px; font-size: 10px; font-weight: 600; }
+.tag-navy { background: var(--sky2); color: var(--navy); }
+.tag-green { background: var(--teallt); color: var(--teal); }
+.scroll { flex: 1; overflow-y: auto; padding: 28px 28px 48px; }
+
+/* ── PAGES ── */
+.pg { display: none; }
+.pg.on { display: block; animation: fadeUp .3s ease; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── ALERT ── */
+.alert { background: var(--sky); border: 1px solid #93C5FD; border-left: 4px solid var(--blue2); border-radius: var(--r); padding: 14px 18px; margin-bottom: 20px; display: flex; gap: 10px; }
+.alert-ic { font-size: 17px; flex-shrink: 0; margin-top: 1px; }
+.alert-title { font-size: 13px; font-weight: 700; color: var(--navy); margin-bottom: 4px; }
+.alert-txt { font-size: 12px; color: var(--g600); line-height: 1.7; }
+
+/* ── CARDS ── */
+.card { background: var(--w); border-radius: var(--r2); border: 1px solid var(--g200); box-shadow: var(--sh); overflow: hidden; margin-bottom: 16px; }
+.card-hdr { padding: 14px 20px; border-bottom: 1px solid var(--g100); display: flex; align-items: center; gap: 10px; background: var(--g50); }
+.card-ic { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 15px; background: var(--navy); color: #fff; flex-shrink: 0; }
+.card-hdr h3 { font-size: 13px; font-weight: 700; color: var(--g800); }
+.card-hdr p { font-size: 11px; color: var(--g400); margin-top: 1px; }
+.card-body { padding: 20px; }
+
+/* ── FORM ── */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px; }
+.fg { display: flex; flex-direction: column; gap: 5px; }
+.fg.full { grid-column: 1 / -1; }
+label { font-size: 11px; font-weight: 700; color: var(--navy); display: flex; align-items: center; gap: 3px; }
+.req { color: var(--red); }
+.opt { color: var(--g400); font-weight: 400; font-size: 10px; }
+input, textarea { font-family: 'Noto Sans KR', sans-serif; font-size: 13px; color: var(--g800); background: var(--g50); border: 1.5px solid var(--g200); border-radius: 8px; padding: 9px 12px; outline: none; transition: all .18s; width: 100%; }
+input:focus, textarea:focus { border-color: var(--blue2); background: var(--w); box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
+textarea { resize: vertical; min-height: 78px; line-height: 1.6; }
+.hint { font-size: 10px; color: var(--g400); margin-top: 2px; }
+
+/* ── BUTTONS ── */
+.btn-gen { width: 100%; padding: 17px; background: linear-gradient(135deg, var(--navy2), var(--navy), var(--blue)); color: #fff; border: none; border-radius: 13px; font-family: 'Noto Sans KR', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer; transition: all .22s; box-shadow: 0 5px 22px rgba(27,58,107,.4); display: flex; align-items: center; justify-content: center; gap: 8px; }
+.btn-gen:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(27,58,107,.52); }
+.btn-gen:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+.btn-rst { width: 100%; padding: 12px; background: var(--w); color: var(--g500); border: 1.5px solid var(--g200); border-radius: 11px; font-family: 'Noto Sans KR', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 8px; transition: all .18s; }
+.btn-rst:hover { border-color: var(--g300); background: var(--g50); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 8px 16px; border-radius: 8px; font-family: 'Noto Sans KR', sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; }
+.btn-outline { background: var(--w); color: var(--navy); border: 1.5px solid var(--navy); }
+.btn-outline:hover { background: var(--sky); }
+
+/* ── LOADING ── */
+.load-card { max-width: 480px; margin: 0 auto; background: var(--w); border-radius: var(--r2); border: 1px solid var(--g200); box-shadow: var(--sh2); padding: 48px 40px; text-align: center; }
+.spin-wrap { display: inline-block; position: relative; margin-bottom: 24px; }
+.s1 { width: 70px; height: 70px; border-radius: 50%; border: 3px solid var(--g200); border-top: 3px solid var(--navy); animation: sp 1s linear infinite; }
+.s2 { position: absolute; top: 8px; left: 8px; width: 54px; height: 54px; border-radius: 50%; border: 3px solid var(--sky2); border-bottom: 3px solid var(--blue2); animation: sp .8s linear infinite reverse; }
+@keyframes sp { to { transform: rotate(360deg); } }
+.load-title { font-size: 19px; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
+.load-sub { font-size: 12px; color: var(--g500); margin-bottom: 24px; line-height: 1.7; }
+.prog-lbl { display: flex; justify-content: space-between; font-size: 11px; color: var(--g400); margin-bottom: 6px; }
+.prog-track { height: 6px; background: var(--g200); border-radius: 3px; overflow: hidden; margin-bottom: 20px; }
+.prog-fill { height: 100%; background: linear-gradient(90deg, var(--navy), var(--blue2)); border-radius: 3px; transition: width .5s ease; width: 0%; }
+.logs { text-align: left; background: var(--g50); border: 1px solid var(--g200); border-radius: 10px; padding: 12px 14px; }
+.log { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; color: var(--g400); border-bottom: 1px solid var(--g100); }
+.log:last-child { border-bottom: none; }
+.log.done { color: var(--green); } .log.act { color: var(--blue); font-weight: 600; } .log.err { color: var(--red); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.log.act .dot { animation: pu .8s ease infinite alternate; }
+@keyframes pu { from { opacity: .3; } to { opacity: 1; } }
+
+/* ── RESULT ── */
+.res-hero { background: linear-gradient(135deg, #ECFDF5, var(--teallt)); border: 1.5px solid #6EE7B7; border-radius: var(--r2); padding: 20px 24px; display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+.res-ic { font-size: 34px; flex-shrink: 0; }
+.res-hero h2 { font-size: 17px; font-weight: 700; color: #065F46; }
+.res-hero p { font-size: 11px; color: #047857; margin-top: 2px; }
+.res-acts { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
+.doc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+@media (max-width: 700px) { .doc-grid { grid-template-columns: 1fr; } }
+.doc-card { background: var(--w); border-radius: var(--r2); border: 2px solid var(--g200); padding: 20px; transition: all .18s; }
+.doc-card:hover { border-color: var(--blue2); box-shadow: var(--sh2); }
+.dc-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.dc-badge { width: 42px; height: 42px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+.dc-p { background: linear-gradient(135deg, var(--navy2), var(--navy)); }
+.dc-r { background: linear-gradient(135deg, #047857, var(--teal)); }
+.dc-title { font-size: 14px; font-weight: 700; color: var(--g900); }
+.dc-sub { font-size: 11px; color: var(--g400); margin-top: 1px; }
+.dc-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 14px; }
+.dc-acts { display: flex; flex-direction: column; gap: 7px; }
+.dl-btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 11px; border-radius: 9px; font-family: 'Noto Sans KR', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; width: 100%; }
+.dl-plan { background: linear-gradient(135deg, var(--navy2), var(--navy)); color: #fff; box-shadow: 0 3px 12px rgba(27,58,107,.3); }
+.dl-report { background: linear-gradient(135deg, #047857, var(--teal)); color: #fff; box-shadow: 0 3px 12px rgba(13,124,107,.25); }
+.dl-btn:hover { transform: translateY(-1px); }
+.dl-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+/* ── PREVIEW ── */
+.pv-wrap { background: var(--w); border-radius: var(--r2); border: 1px solid var(--g200); overflow: hidden; margin-bottom: 14px; }
+.pv-hdr { padding: 13px 18px; background: var(--g50); border-bottom: 1px solid var(--g200); display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.pv-hdr:hover { background: var(--sky); }
+.pv-title { font-size: 13px; font-weight: 700; color: var(--navy); flex: 1; }
+.pv-tog { color: var(--g400); font-size: 15px; transition: transform .2s; }
+.pv-wrap.open .pv-tog { transform: rotate(180deg); }
+.pv-body { display: none; }
+.pv-wrap.open .pv-body { display: block; }
+.pv-sec { border-bottom: 1px solid var(--g100); }
+.pv-sec:last-child { border-bottom: none; }
+.pv-sh { display: flex; align-items: center; gap: 8px; padding: 11px 18px; cursor: pointer; transition: background .14s; }
+.pv-sh:hover { background: var(--g50); }
+.snum { width: 26px; height: 26px; background: var(--navy); color: #fff; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.stitle { font-size: 12.5px; font-weight: 700; color: var(--navy); flex: 1; }
+.stog { font-size: 13px; color: var(--g300); transition: transform .2s; }
+.pv-sec.open .stog { transform: rotate(180deg); }
+.pv-sb { display: none; padding: 12px 18px 16px; background: var(--g50); }
+.pv-sec.open .pv-sb { display: block; }
+.pv-text { font-size: 12px; color: var(--g700); line-height: 1.8; }
+.pv-list { list-style: none; padding: 0; }
+.pv-list li { display: flex; gap: 6px; font-size: 12px; color: var(--g700); padding: 3px 0; line-height: 1.6; }
+.pv-list li::before { content: '▸'; color: var(--blue2); flex-shrink: 0; }
+
+/* ── HISTORY ── */
+.hist-empty { text-align: center; padding: 50px 20px; color: var(--g400); font-size: 13px; }
+.hist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.hc { background: var(--w); border-radius: var(--r2); border: 1.5px solid var(--g200); padding: 16px 18px; transition: all .18s; }
+.hc:hover { border-color: var(--blue2); box-shadow: var(--sh); }
+.hc-title { font-size: 13px; font-weight: 700; color: var(--g800); margin-bottom: 4px; }
+.hc-meta { font-size: 11px; color: var(--g400); margin-bottom: 12px; }
+.hc-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.bsm { padding: 6px 11px; border-radius: 7px; font-size: 11px; font-weight: 600; cursor: pointer; border: none; transition: all .13s; }
+.bsm-ol { background: var(--w); color: var(--navy); border: 1.5px solid var(--g200); }
+.bsm-ol:hover { border-color: var(--navy); background: var(--sky); }
+.bsm-red { background: #FEE2E2; color: var(--red); border: 1.5px solid #FECACA; }
+.bsm-red:hover { background: #FECACA; }
+
+/* ── ERROR ── */
+.err-box { background: #FEF2F2; border: 1.5px solid #FECACA; border-radius: var(--r); padding: 16px 20px; display: flex; gap: 10px; margin-bottom: 16px; }
+.err-title { font-size: 14px; font-weight: 700; color: #991B1B; margin-bottom: 4px; }
+.err-msg { font-size: 12px; color: #7F1D1D; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  .sb { display: none; }
+  .grid2 { grid-template-columns: 1fr; }
+  .scroll { padding: 16px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- SIDEBAR -->
+<aside class="sb">
+  <div class="sb-logo">
+    <div class="em">🏛️</div>
+    <h1>GovDoc AI</h1>
+    <p>정부사업 문서 자동생성<br>Claude AI 기반</p>
+  </div>
+  <div class="sb-sec">
+    <div class="sb-lbl">문서 생성</div>
+    <div class="nav on" onclick="goPage('gen',this)"><span class="ic">⚡</span>문서 생성하기<span class="badge">AI</span></div>
+    <div class="nav" onclick="goPage('hist',this)"><span class="ic">📂</span>생성 히스토리</div>
+  </div>
+  <div class="sb-sec">
+    <div class="sb-lbl">문서 유형</div>
+    <div class="nav dim"><span class="ic">📋</span>사업계획서</div>
+    <div class="nav dim"><span class="ic">📊</span>사업결과보고서</div>
+    <div class="nav dim"><span class="ic">📄</span>공문 (준비중)</div>
+    <div class="nav dim"><span class="ic">💼</span>사업제안서 (준비중)</div>
+  </div>
+  <div class="sb-ft">Claude Sonnet 기반<br>A4 DOCX 전문 양식 출력<br>Vercel + Anthropic API</div>
+</aside>
+
+<!-- CANVAS -->
+<main class="canvas">
+  <div class="topbar">
+    <div>
+      <span class="tb-title" id="tbTitle">문서 생성하기</span>
+      <span class="tb-sub" id="tbSub"> — 사업 정보 입력 후 AI가 두 문서를 동시 생성합니다</span>
+    </div>
+    <div class="tb-tags">
+      <span class="tag tag-navy">🤖 Claude Sonnet</span>
+      <span class="tag tag-green">A4 DOCX</span>
+    </div>
+  </div>
+
+  <div class="scroll">
+
+    <!-- 생성 페이지 -->
+    <div class="pg on" id="pg-gen">
+      <div class="alert">
+        <div class="alert-ic">📌</div>
+        <div>
+          <div class="alert-title">30페이지형 보고서 구조로 개편된 실행형 캔버스입니다.</div>
+          <div class="alert-txt">한 번 생성하면 <strong>사업계획서</strong>와 <strong>사업결과보고서</strong>가 각각 전문 양식으로 만들어집니다.<br>표지 · 목차 · KPI 표 · 예산 표 · 추진단계 표 · 성과 요약 박스 · 헤더/푸터 포함.</div>
+        </div>
+      </div>
+
+      <div id="errArea"></div>
+
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-ic">📋</div>
+          <div><h3>사업 기본 정보</h3><p>사업의 핵심 메타데이터를 입력합니다</p></div>
+        </div>
+        <div class="card-body">
+          <div class="grid2">
+            <div class="fg"><label>사업명 <span class="req">*</span></label><input id="f-proj" placeholder="예: 외국인 대상 지역상권 홍보 콘텐츠 제작 사업"></div>
+            <div class="fg"><label>주관기관 <span class="req">*</span></label><input id="f-sup" placeholder="예: 창업진흥원"></div>
+            <div class="fg"><label>사업 분야</label><input id="f-field" placeholder="예: 콘텐츠·미디어"></div>
+            <div class="fg"><label>담당부서 <span class="opt">(선택)</span></label><input id="f-dept" placeholder="예: 사업추진팀"></div>
+            <div class="fg"><label>시작일 <span class="req">*</span></label><input id="f-start" placeholder="예: 2026.01"></div>
+            <div class="fg"><label>종료일 <span class="req">*</span></label><input id="f-end" placeholder="예: 2026.12"></div>
+            <div class="fg"><label>사업 예산 <span class="req">*</span></label><input id="f-budget" placeholder="예: 199,000,000원"></div>
+            <div class="fg"><label>수행기관</label><input id="f-org" placeholder="예: 주식회사 케이시드"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-ic" style="background:linear-gradient(135deg,#047857,var(--teal))">📝</div>
+          <div><h3>사업 내용 및 목표</h3><p>AI가 내용을 생성할 핵심 정보를 상세히 입력하세요</p></div>
+        </div>
+        <div class="card-body">
+          <div class="grid2">
+            <div class="fg full"><label>사업 목적 및 추진 배경 <span class="req">*</span></label><textarea id="f-purpose" placeholder="예: 지역상권 및 참여 기업의 홍보 역량을 강화하고 외국인 대상 콘텐츠를 체계적으로 제작·운영하기 위함"></textarea></div>
+            <div class="fg full"><label>주요 추진 내용 <span class="req">*</span></label><textarea id="f-main" placeholder="예: 홍보영상 기획, 촬영, 편집, 다국어 자막 제작, 결과보고서 정리, 성과 분석"></textarea></div>
+            <div class="fg full"><label>KPI <span class="opt">(핵심성과지표)</span></label><textarea id="f-kpi" rows="2" placeholder="예: 콘텐츠 제작량: 24건, 만족도: 90점 이상, 납기 준수율: 100%"></textarea><div class="hint">💡 KPI를 구체적으로 입력하면 AI가 KPI 표와 달성 현황을 자동 작성합니다</div></div>
+            <div class="fg full"><label>추가 정보 <span class="opt">(선택)</span></label><textarea id="f-add" rows="2" placeholder="예: 협력기관, 특이사항, 강조하고 싶은 내용 등"></textarea></div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-gen" id="genBtn" onclick="startGen()">⚡ 30페이지형 두 문서 생성</button>
+      <button class="btn-rst" onclick="resetF()">초기화</button>
+    </div>
+
+    <!-- 로딩 페이지 -->
+    <div class="pg" id="pg-load">
+      <div class="load-card">
+        <div class="spin-wrap"><div class="s1"></div><div class="s2"></div></div>
+        <div class="load-title">AI가 문서를 작성하고 있습니다</div>
+        <div class="load-sub">사업 정보를 분석하고 전문 정부 문서 양식에<br>맞게 내용을 생성 중입니다.</div>
+        <div class="prog-lbl"><span id="pLabel">분석 중...</span><span id="pPct">0%</span></div>
+        <div class="prog-track"><div class="prog-fill" id="pBar"></div></div>
+        <div class="logs">
+          <div class="log" id="l1"><div class="dot"></div>입력 정보 검증 및 분석</div>
+          <div class="log" id="l2"><div class="dot"></div>사업계획서 AI 내용 생성</div>
+          <div class="log" id="l3"><div class="dot"></div>사업결과보고서 AI 내용 생성</div>
+          <div class="log" id="l4"><div class="dot"></div>사업계획서 DOCX 파일 생성</div>
+          <div class="log" id="l5"><div class="dot"></div>사업결과보고서 DOCX 파일 생성</div>
+          <div class="log" id="l6"><div class="dot"></div>히스토리 저장 및 완료</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 결과 페이지 -->
+    <div class="pg" id="pg-res">
+      <div class="res-hero">
+        <div class="res-ic">✅</div>
+        <div><h2>문서 생성 완료!</h2><p id="resSubtitle">사업계획서 · 사업결과보고서 2종이 생성되었습니다</p></div>
+        <div class="res-acts"><button class="btn btn-outline" onclick="goPage('gen',null);resetNav()">← 다시 작성</button></div>
+      </div>
+
+      <div class="doc-grid">
+        <div class="doc-card">
+          <div class="dc-top"><div class="dc-badge dc-p">📋</div><div><div class="dc-title">사업계획서</div><div class="dc-sub">사업 추진 전 제출용 계획 문서</div></div></div>
+          <div class="dc-tags"><span class="tag tag-navy">Ⅰ~Ⅷ 섹션</span><span class="tag tag-navy">목차</span><span class="tag tag-navy">KPI 표</span><span class="tag tag-navy">예산 표</span></div>
+          <div class="dc-acts">
+            <button class="dl-btn dl-plan" id="dlPlanBtn" onclick="downloadDoc('plan')">⬇️ 사업계획서 DOCX 다운로드</button>
+            <button class="btn btn-outline" style="width:100%;font-size:12px;" onclick="togglePv('plan')">👁️ 내용 미리보기</button>
+          </div>
+        </div>
+        <div class="doc-card">
+          <div class="dc-top"><div class="dc-badge dc-r">📊</div><div><div class="dc-title">사업결과보고서</div><div class="dc-sub">사업 종료 후 제출용 결과 문서</div></div></div>
+          <div class="dc-tags"><span class="tag tag-green">Ⅰ~Ⅶ 섹션</span><span class="tag tag-green">성과 요약</span><span class="tag tag-green">KPI 달성</span><span class="tag tag-green">예산 집행</span></div>
+          <div class="dc-acts">
+            <button class="dl-btn dl-report" id="dlReportBtn" onclick="downloadDoc('report')">⬇️ 사업결과보고서 DOCX 다운로드</button>
+            <button class="btn btn-outline" style="width:100%;font-size:12px;" onclick="togglePv('report')">👁️ 내용 미리보기</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="pv-wrap" id="pvPlan">
+        <div class="pv-hdr" onclick="this.parentElement.classList.toggle('open')">
+          <span>📋</span><span class="pv-title">사업계획서 — 내용 미리보기</span><span class="pv-tog">▾</span>
+        </div>
+        <div class="pv-body" id="pvPlanBody"></div>
+      </div>
+      <div class="pv-wrap" id="pvReport">
+        <div class="pv-hdr" onclick="this.parentElement.classList.toggle('open')">
+          <span>📊</span><span class="pv-title">사업결과보고서 — 내용 미리보기</span><span class="pv-tog">▾</span>
+        </div>
+        <div class="pv-body" id="pvReportBody"></div>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:center;padding:8px 0 24px;">
+        <button class="btn btn-outline" onclick="goPage('gen',null);resetNav()">🔄 새 문서 작성</button>
+        <button class="btn btn-outline" onclick="goPage('hist',null);setNav(1)">📂 히스토리 보기</button>
+      </div>
+    </div>
+
+    <!-- 히스토리 페이지 -->
+    <div class="pg" id="pg-hist">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+        <div>
+          <div style="font-size:17px;font-weight:700;color:var(--g900);">생성 히스토리</div>
+          <div style="font-size:11px;color:var(--g400);margin-top:2px;">이전에 생성한 문서를 다시 다운로드할 수 있습니다</div>
+        </div>
+        <button class="bsm bsm-red" onclick="clearHist()">전체 삭제</button>
+      </div>
+      <div id="histCont"></div>
+    </div>
+
+  </div><!-- /scroll -->
+</main>
+</div>
+
+<!-- docx.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js"></script>
+<script>
+// ─ DOCX ENGINE ──────────────────────────────────────────────
+const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+  Header, Footer, AlignmentType, BorderStyle, WidthType, ShadingType,
+  VerticalAlign, PageBreak, TabStopType } = docx;
+
+const PW = 11906, ML = 1701, CW = PW - ML * 2;
+const C = {
+  navy:'1B3A6B', navy2:'0F2040', blue:'2563A8', blue2:'3B82F6',
+  sky:'DBEAFE', teal:'0D7C6B', teallt:'CCFBF1', gold:'B45309', goldlt:'FEF3C7',
+  w:'FFFFFF', g50:'F8FAFC', g100:'F1F5F9', g200:'E2E8F0', g400:'94A3B8',
+  g600:'475569', g800:'1E293B', red:'DC2626', green:'059669',
+};
+const bdr = (c=C.g200, s=6) => ({ style: BorderStyle.SINGLE, size: s, color: c });
+const allB = (c=C.g200, s=6) => ({ top:bdr(c,s), bottom:bdr(c,s), left:bdr(c,s), right:bdr(c,s) });
+const sp = (b=0, a=0) => ({ before:b, after:a });
+const E = (h=80) => new Paragraph({ spacing:sp(0,0), children:[new TextRun({text:'',size:h})] });
+
+function mkHdr(type, org) {
+  const lbl = { plan:'사 업 계 획 서', report:'사 업 결 과 보 고 서' };
+  return new Header({ children:[
+    new Paragraph({ spacing:sp(0,0), border:{bottom:bdr(C.navy,12)},
+      tabStops:[{type:TabStopType.RIGHT, position:CW}],
+      children:[
+        new TextRun({text:lbl[type]||type, font:'맑은 고딕', size:20, bold:true, color:C.navy}),
+        new TextRun({text:'\t', font:'맑은 고딕'}),
+        new TextRun({text:org||'', font:'맑은 고딕', size:17, color:C.g600}),
+      ]}),
+    E(80),
+  ]});
+}
+
+function mkFtr(proj) {
+  return new Footer({ children:[
+    E(80),
+    new Paragraph({ spacing:sp(0,0), border:{top:bdr(C.navy,8)},
+      tabStops:[{type:TabStopType.RIGHT, position:CW}],
+      children:[
+        new TextRun({text:proj||'', font:'맑은 고딕', size:16, color:C.g400}),
+        new TextRun({text:'\t', font:'맑은 고딕'}),
+        new TextRun({text:new Date().toLocaleDateString('ko-KR'), font:'맑은 고딕', size:16, color:C.g400}),
+      ]}),
+  ]});
+}
+
+function cover(type, d) {
+  const isR = type === 'report';
+  const main = isR ? '사업결과보고서' : '사업계획서';
+  const sub  = isR ? '사업수행 결과 최종 보고' : '대한민국 정부지원사업';
+  const bgt  = d.budget ? Number(String(d.budget).replace(/[^0-9]/g,'')).toLocaleString('ko-KR')+'원' : '';
+  const C1=2700, C2=CW-2700;
+  const iRow = (l,v,i) => new TableRow({children:[
+    new TableCell({width:{size:C1,type:WidthType.DXA}, borders:allB(C.navy,6), shading:{fill:i%2===0?C.navy:C.blue,type:ShadingType.CLEAR}, margins:{top:110,bottom:110,left:180,right:180},
+      children:[new Paragraph({spacing:sp(0,0), children:[new TextRun({text:l, font:'맑은 고딕', size:19, bold:true, color:C.w})]})] }),
+    new TableCell({width:{size:C2,type:WidthType.DXA}, borders:allB(C.navy,6), shading:{fill:i%2===0?C.sky:C.w,type:ShadingType.CLEAR}, margins:{top:110,bottom:110,left:180,right:180},
+      children:[new Paragraph({spacing:sp(0,0), children:[new TextRun({text:v||'', font:'맑은 고딕', size:19, color:C.g800})]})] }),
+  ]});
+  const tocSecs = type==='plan'
+    ? ['Ⅰ. 사업 개요','Ⅱ. 추진 배경 및 필요성','Ⅲ. 사업 목표','Ⅳ. 사업 범위 및 내용','Ⅴ. 추진 체계','Ⅵ. 예산 계획','Ⅶ. 기대성과 및 활용방안','Ⅷ. 위험관리 방안']
+    : ['Ⅰ. 사업 개요','Ⅱ. 사업 추진 경과','Ⅲ. 주요 성과','Ⅳ. 예산 집행 결과','Ⅴ. 문제점 및 개선사항','Ⅵ. 향후 계획','Ⅶ. 종합 의견'];
+  return [
+    E(1440),
+    new Paragraph({alignment:AlignmentType.CENTER, spacing:sp(0,100), children:[new TextRun({text:sub, font:'맑은 고딕', size:24, color:C.blue})]}),
+    new Paragraph({alignment:AlignmentType.CENTER, spacing:sp(0,0), border:{bottom:{style:BorderStyle.SINGLE,size:16,color:C.navy,space:1}},
+      children:[new TextRun({text:main, font:'맑은 고딕', size:72, bold:true, color:C.navy})]}),
+    E(160),
+    new Paragraph({alignment:AlignmentType.CENTER, spacing:sp(0,0), children:[new TextRun({text:d.projectName||'', font:'맑은 고딕', size:34, bold:true, color:C.g800})]}),
+    E(60),
+    new Paragraph({alignment:AlignmentType.CENTER, spacing:sp(0,0), children:[new TextRun({text:`${d.field||''} | ${d.startDate||''}~${d.endDate||''}`, font:'맑은 고딕', size:22, color:C.g600})]}),
+    E(1000),
+    new Table({width:{size:CW-800,type:WidthType.DXA}, columnWidths:[C1,C2], rows:[
+      iRow('주관기관',d.supervisor,0), iRow('수행기관',d.orgName,1),
+      iRow('사업기간',`${d.startDate||''} ~ ${d.endDate||''}`,0),
+      iRow('사업예산',bgt,1), iRow('제출일자',new Date().toLocaleDateString('ko-KR'),0),
+    ]}),
+    E(160), new Paragraph({children:[new PageBreak()]}),
+    new Paragraph({spacing:sp(0,160), border:{bottom:{style:BorderStyle.SINGLE,size:12,color:C.navy,space:2}},
+      children:[new TextRun({text:'목  차', font:'맑은 고딕', size:28, bold:true, color:C.navy})]}),
+    E(80),
+    ...tocSecs.map(s => new Paragraph({spacing:sp(90,90), tabStops:[{type:TabStopType.RIGHT,position:CW}],
+      children:[new TextRun({text:s, font:'맑은 고딕', size:20, bold:true, color:C.navy}), new TextRun({text:'\t ·····', font:'맑은 고딕', size:20, color:C.g400})]})),
+    new Paragraph({children:[new PageBreak()]}),
+  ];
+}
+
+const H1=(r,t)=>new Paragraph({spacing:sp(400,180), border:{bottom:{style:BorderStyle.SINGLE,size:12,color:C.navy,space:2}}, children:[...(r?[new TextRun({text:`${r}. `,font:'맑은 고딕',size:26,bold:true,color:C.blue})]:[]),new TextRun({text:t,font:'맑은 고딕',size:26,bold:true,color:C.navy})]});
+const H2=(t)=>new Paragraph({spacing:sp(220,100), children:[new TextRun({text:'□ ',font:'맑은 고딕',size:22,bold:true,color:C.blue}),new TextRun({text:t,font:'맑은 고딕',size:22,bold:true,color:C.g800})]});
+const H3=(t)=>new Paragraph({spacing:sp(150,70), indent:{left:200}, children:[new TextRun({text:'○ ',font:'맑은 고딕',size:20,bold:true,color:C.teal}),new TextRun({text:t,font:'맑은 고딕',size:20,bold:true,color:C.g800})]});
+const BD=(t,i=300)=>new Paragraph({spacing:sp(65,65), indent:{left:i}, children:[new TextRun({text:t||'',font:'맑은 고딕',size:20,color:C.g800})]});
+const BL=(t,lv=0)=>{const lf=[420,660,880];return new Paragraph({spacing:sp(50,50), indent:{left:lf[lv]||420,hanging:210}, children:[new TextRun({text:'- ',font:'맑은 고딕',size:20,bold:true,color:C.blue}),new TextRun({text:t||'',font:'맑은 고딕',size:20,color:C.g800})]});};
+
+const callout=(title,text,fill=C.sky)=>new Table({width:{size:CW,type:WidthType.DXA}, columnWidths:[CW], rows:[new TableRow({children:[new TableCell({width:{size:CW,type:WidthType.DXA}, borders:{top:bdr(C.blue,12),bottom:bdr(C.blue,6),left:bdr(C.blue,22),right:bdr(C.blue,6)}, shading:{fill,type:ShadingType.CLEAR}, margins:{top:130,bottom:130,left:200,right:200}, children:[...(title?[new Paragraph({spacing:sp(0,65),children:[new TextRun({text:title,font:'맑은 고딕',size:19,bold:true,color:C.navy})]})]:[]),new Paragraph({spacing:sp(0,0),children:[new TextRun({text:text||'',font:'맑은 고딕',size:19,color:C.g800})]})]})]})]}));
+
+const i2col=(rows)=>{const W=[2200,CW-2200];return new Table({width:{size:CW,type:WidthType.DXA}, columnWidths:W, rows:rows.map(([l,v],i)=>new TableRow({children:[new TableCell({width:{size:W[0],type:WidthType.DXA},borders:allB(C.g200),shading:{fill:i%2===0?C.navy:C.blue,type:ShadingType.CLEAR},margins:{top:90,bottom:90,left:150,right:150},children:[new Paragraph({spacing:sp(0,0),children:[new TextRun({text:l,font:'맑은 고딕',size:18,bold:true,color:C.w})]})]}),new TableCell({width:{size:W[1],type:WidthType.DXA},borders:allB(C.g200),shading:{fill:i%2===0?C.sky:C.w,type:ShadingType.CLEAR},margins:{top:90,bottom:90,left:150,right:150},children:[new Paragraph({spacing:sp(0,0),children:[new TextRun({text:v||'',font:'맑은 고딕',size:18,color:C.g800})]})]})]}))});};
+
+const phaseT=(ps)=>{const W=[1100,1850,1650,CW-4600];const hdr=new TableRow({children:['단계','기간','담당','주요 내용'].map((h,i)=>new TableCell({width:{size:W[i],type:WidthType.DXA},borders:allB(C.navy),shading:{fill:C.navy,type:ShadingType.CLEAR},margins:{top:85,bottom:85,left:130,right:130},children:[new Paragraph({alignment:AlignmentType.CENTER,spacing:sp(0,0),children:[new TextRun({text:h,font:'맑은 고딕',size:18,bold:true,color:C.w})]})]}))});const dR=(ps||[]).map((p,i)=>new TableRow({children:[new TableCell({width:{size:W[0],type:WidthType.DXA},borders:allB(C.g200),shading:{fill:i%2===0?C.sky:C.w,type:ShadingType.CLEAR},margins:{top:85,bottom:85,left:100,right:100},children:[new Paragraph({alignment:AlignmentType.CENTER,spacing:sp(0,0),children:[new TextRun({text:p.phase||'',font:'맑은 고딕',size:17,bold:true,color:C.navy})]})]}),new TableCell({width:{size:W[1],type:WidthType.DXA},borders:allB(C.g200),shading:{fill:i%2===0?C.sky:C.w,type:ShadingType.CLEAR},margins:{top:85,bottom:85,left:100,right:100},children:[new Paragraph({alignment:AlignmentType.CENTER,spacing:sp(0,0),children:[new TextRun({text:p.period||'',font:'맑은 고딕',size:17,color:C.g800})]})]}),new TableCell({width:{size:W[2],type:WidthType.DXA},borders:allB(C.g200),shading:{fill:i%2===0?C.sky:C.w,type:ShadingType.CLEAR},margins:{top:85,bottom:85,left:100,right:100},children:[new Paragraph({alignment:AlignmentType.CENTER,spacing:sp(0,0),children:[new TextRun({text:p.owner||'',font:'맑은 고딕',size:17,color:C.g800})]})]}),new TableCell({width:{size:W[3],type:WidthType.DXA},borders:allB(C.g200),shading:{fill:i%2===0?C.sky:C.w,type:ShadingType.CLEAR},margins:{top:85,bottom:85,left:130,right:130},children:[new Paragraph({spacing:sp(0,0),children:[new TextRun({text:p.content||'',font:'맑은 고딕',size:17,color:C.g800})]})]})]}));return new Table({width:{size:CW,type:WidthType.DXA},columnWidths:W,rows:[hdr,...dR]});};
+
+const kpiT=(its)=>{const W=[2200,1500,1600,CW-5300];const hdr=new TableRow({children:['KPI 항목','목표치','달성여부','비고'].map((h,i)=>new TableCell({width:{size:W[i],type:WidthType.DXA},borders:allB(C.teal),shading:{fill:C.teal,type:ShadingType.CLEAR},margins:{top:85,bottom:85,left:130,right:130},children:[new Paragraph({alignment:AlignmentType.CENTER,spacing:sp(0,0),children:[new TextRun({text:h,font:'맑은 고딕',size:18,bold:true,color:C.w})]})]}))});const dR=(its||[]).map((r,i)=>new TableRow({children:[new TableCell({width:{size:W[0],type:WidthType.DXA},borders:allB(C.g200),shading:{fill:i%2===0?C.teallt:C.w,type:ShadingType.CLEAR},margins:{top:85,bottom:85,left:130,right:130},children:[new Paragraph({spacing:sp(0,0),children:[new TextRun({text:r.item||'',font:'맑은 고딕',size:17,color:C.g800})]})]}),new TableCell({width:{size:W[1],type:WidthType.DXA},borders:allB(C.g200),shading:{fill:i%2===0?C.teallt:C.w,type:ShadingType.CLEAR},margins:{top:85,bottom:85,left:100,right:100},children:[new Paragraph({alignment:AlignmentType.CENTER,spacing:sp(0,0),children:[new TextRun({text:r.target||'',font:'맑은 고딕',size:17,bold:true,color:C.teal})]})]}),new TableCell({width:{size:W[2],type:WidthType.DXA},borders:allB(C.g200),shading:{fill:i%2===0?C.teallt:C.w,type:ShadingType.CLEAR},margins:{top:85,bottom:85,left:100,right:100},children:[new Paragraph({alignment:AlignmentType.CENTER,spacing:sp(0,0),children:[new TextRun({text:r.achieved||'',font:'맑은 고딕',size:17,color:r.achieved&&r.achieved.includes('달성')?C.green:C.red})]})]}),new TableCell({width:{size:W[3],type:WidthType.DXA},borders:allB(C.g200),shading:{fill:i%2===0?C.teallt:C.w,type:ShadingType.CLEAR},margins:{top:85,bottom:85,left:130,right:130},children:[new Paragraph({spacing:sp(0,0),children:[new TextRun({text:r.note||'',font:'맑은 고딕',size:17,color:C.g600})]})]})]}));return new Table({width:{size:CW,type:WidthType.DXA},columnWidths:W,rows:[hdr,...dR]});};
+
+const budgT=(its)=>{const W=[2300,1600,1300,CW-5200];const hdr=new TableRow({children:['비목','예산액(원)','비율(%)','산출근거'].map((h,i)=>new TableCell({width:{size:W[i],type:WidthType.DXA},borders:allB(C.gold),shading:{fill:C.gold,type:ShadingType.CLEAR},margins:{top:85,bottom:85,left:130,right:130},children:[new Paragraph({alignment:AlignmentType.CENTER,spacing:sp(0,0),children:[new TextRun({text:h,font:'맑은 고딕',size:18,bold:true,color:C.w})]})]}))});const dR=(its||[]).map((r,i)=>new TableRow({children:[new TableCell({width:{size:W[0],type:WidthType.DXA},borders:allB(C.g200),shading:{fill:i%2===0?C.goldlt:C.w,type:ShadingType.CLEAR},margins:{top:85,bottom:85,left:130,right:130},children:[new Paragraph({spacing:sp(0,0),children:[new TextRun({text:r.item||'',font:'맑은 고딕',size:17,bold:true,color:C.g800})]})]}),new TableCell({width:{size:W[1],type:WidthType.DXA},borders:allB(C.g200),shading:{fill:i%2===0?C.goldlt:C.w,type:ShadingType.CLEAR},margins:{top:85,bottom:85,left:100,right:100},children:[new Paragraph({alignment:AlignmentType.RIGHT,spacing:sp(0,0),children:[new TextRun({text:r.amount||'',font:'맑은 고딕',size:17,color:C.g800})]})]}),new TableCell({width:{size:W[2],type:WidthType.DXA},borders:allB(C.g200),shading:{fill:i%2===0?C.goldlt:C.w,type:ShadingType.CLEAR},margins:{top:85,bottom:85,left:100,right:100},children:[new Paragraph({alignment:AlignmentType.CENTER,spacing:sp(0,0),children:[new TextRun({text:r.ratio||'',font:'맑은 고딕',size:17,color:C.gold})]})]}),new TableCell({width:{size:W[3],type:WidthType.DXA},borders:allB(C.g200),shading:{fill:i%2===0?C.goldlt:C.w,type:ShadingType.CLEAR},margins:{top:85,bottom:85,left:130,right:130},children:[new Paragraph({spacing:sp(0,0),children:[new TextRun({text:r.basis||'',font:'맑은 고딕',size:17,color:C.g600})]})]})]}));return new Table({width:{size:CW,type:WidthType.DXA},columnWidths:W,rows:[hdr,...dR]});};
+
+const achBoxes=(its)=>{const n=Math.min((its||[]).length,4);if(!n)return E(0);const cw=Math.floor(CW/n),cols=Array(n).fill(cw);cols[n-1]=CW-cw*(n-1);return new Table({width:{size:CW,type:WidthType.DXA},columnWidths:cols,rows:[new TableRow({children:its.slice(0,n).map((it,i)=>new TableCell({width:{size:cols[i],type:WidthType.DXA},borders:allB(C.blue),shading:{fill:i%2===0?C.navy:C.blue,type:ShadingType.CLEAR},margins:{top:170,bottom:170,left:130,right:130},children:[new Paragraph({alignment:AlignmentType.CENTER,spacing:sp(0,45),children:[new TextRun({text:it.value||'',font:'맑은 고딕',size:34,bold:true,color:C.w})]}),new Paragraph({alignment:AlignmentType.CENTER,spacing:sp(0,0),children:[new TextRun({text:it.label||'',font:'맑은 고딕',size:16,color:'BFDBFE'})]})]}))]})]});};
+
+function buildPlan(c,d) {
+  const bgt=d.budget?Number(String(d.budget).replace(/[^0-9]/g,'')).toLocaleString('ko-KR')+'원':'';
+  const it=[];
+  it.push(H1('Ⅰ','사업 개요'));it.push(H2('1. 사업 기본 현황'));
+  it.push(i2col([['사업명',d.projectName],['주관기관',d.supervisor],['수행기관',d.orgName],['사업 분야',d.field],['사업기간',`${d.startDate||''} ~ ${d.endDate||''}`],['사업예산',bgt],['담당부서',d.department||'사업추진팀']]));
+  it.push(E(130));it.push(H2('2. 사업 요약'));it.push(callout('',c.summary||''));it.push(E(100));
+  it.push(new Paragraph({children:[new PageBreak()]}));
+  it.push(H1('Ⅱ','추진 배경 및 필요성'));it.push(H2('1. 추진 배경'));(c.background||[]).forEach(t=>it.push(BD(t)));it.push(E(100));
+  it.push(H2('2. 추진 필요성'));(c.necessity||[]).forEach(t=>it.push(BL(t)));it.push(E(100));
+  it.push(new Paragraph({children:[new PageBreak()]}));
+  it.push(H1('Ⅲ','사업 목표'));it.push(H2('1. 비전'));it.push(callout('비전',c.vision||'',C.sky));it.push(E(100));
+  it.push(H2('2. 세부 목표'));(c.objectives||[]).forEach(t=>it.push(BL(t)));it.push(E(100));
+  if((c.kpiPlan||[]).length){it.push(H2('3. 핵심성과지표(KPI)'));it.push(kpiT(c.kpiPlan));it.push(E(100));}
+  it.push(new Paragraph({children:[new PageBreak()]}));
+  it.push(H1('Ⅳ','사업 범위 및 내용'));it.push(H2('1. 사업 범위'));(c.scope||[]).forEach(t=>it.push(BD(t)));it.push(E(100));
+  it.push(H2('2. 주요 사업 내용'));(c.mainContents||[]).forEach((item,i)=>{it.push(H3(item.title||`세부 내용 ${i+1}`));(item.details||[]).forEach(t=>it.push(BL(t,1)));});it.push(E(100));
+  it.push(new Paragraph({children:[new PageBreak()]}));
+  it.push(H1('Ⅴ','추진 체계'));it.push(H2('1. 추진 조직'));(c.organization||[]).forEach(t=>it.push(BD(t)));it.push(E(100));
+  it.push(H2('2. 추진 일정'));it.push(phaseT(c.phases||[]));it.push(E(100));
+  it.push(H2('3. 협력 기관'));(c.partners||[]).forEach(t=>it.push(BL(t)));it.push(E(100));
+  it.push(new Paragraph({children:[new PageBreak()]}));
+  it.push(H1('Ⅵ','예산 계획'));it.push(H2('1. 예산 편성 개요'));(c.budgetOverview||[]).forEach(t=>it.push(BD(t)));it.push(E(100));
+  it.push(H2('2. 세부 예산 내역'));it.push(budgT(c.budgetItems||[]));it.push(E(100));
+  it.push(new Paragraph({children:[new PageBreak()]}));
+  it.push(H1('Ⅶ','기대성과 및 활용방안'));
+  if((c.achievementSummary||[]).length){it.push(achBoxes(c.achievementSummary));it.push(E(100));}
+  it.push(H2('1. 정량적 성과'));(c.quantResults||[]).forEach(t=>it.push(BL(t)));it.push(E(80));
+  it.push(H2('2. 정성적 성과'));(c.qualResults||[]).forEach(t=>it.push(BL(t)));it.push(E(100));
+  it.push(new Paragraph({children:[new PageBreak()]}));
+  it.push(H1('Ⅷ','위험관리 방안'));it.push(H2('1. 위험 요소'));(c.risks||[]).forEach(t=>it.push(BL(t)));it.push(E(100));
+  it.push(H2('2. 대응 방안'));(c.riskMitigation||[]).forEach(t=>it.push(BD(t)));
+  return it;
+}
+
+function buildReport(c,d) {
+  const bgt=d.budget?Number(String(d.budget).replace(/[^0-9]/g,'')).toLocaleString('ko-KR')+'원':'';
+  const it=[];
+  it.push(H1('Ⅰ','사업 개요'));
+  it.push(i2col([['사업명',d.projectName],['주관기관',d.supervisor],['수행기관',d.orgName],['사업기간',`${d.startDate||''} ~ ${d.endDate||''}`],['총 예산',bgt],['사업 분야',d.field]]));
+  it.push(E(130));it.push(callout('결과 요약',c.summary||''));it.push(E(100));
+  it.push(new Paragraph({children:[new PageBreak()]}));
+  it.push(H1('Ⅱ','사업 추진 경과'));it.push(H2('1. 추진 배경'));(c.background||[]).forEach(t=>it.push(BD(t)));it.push(E(100));
+  it.push(H2('2. 추진 일정 및 경과'));it.push(phaseT(c.phases||[]));it.push(E(100));
+  it.push(H2('3. 추진 방법'));(c.method||[]).forEach(t=>it.push(BL(t)));it.push(E(100));
+  it.push(new Paragraph({children:[new PageBreak()]}));
+  it.push(H1('Ⅲ','주요 성과'));
+  if((c.achievementSummary||[]).length){it.push(achBoxes(c.achievementSummary));it.push(E(140));}
+  it.push(H2('1. KPI 달성 현황'));it.push(kpiT(c.kpiResults||[]));it.push(E(100));
+  it.push(H2('2. 정량적 성과'));(c.quantResults||[]).forEach(t=>it.push(BL(t)));it.push(E(80));
+  it.push(H2('3. 정성적 성과'));(c.qualResults||[]).forEach(t=>it.push(BL(t)));it.push(E(100));
+  it.push(H2('4. 세부 사업별 성과'));(c.detailResults||[]).forEach((item,i)=>{it.push(H3(item.title||`세부사업 ${i+1}`));(item.details||[]).forEach(t=>it.push(BL(t,1)));});it.push(E(100));
+  it.push(new Paragraph({children:[new PageBreak()]}));
+  it.push(H1('Ⅳ','예산 집행 결과'));it.push(H2('1. 예산 집행 개요'));(c.budgetSummary||[]).forEach(t=>it.push(BD(t)));it.push(E(100));
+  it.push(H2('2. 세부 예산 집행 현황'));it.push(budgT(c.budgetItems||[]));it.push(E(100));
+  it.push(new Paragraph({children:[new PageBreak()]}));
+  it.push(H1('Ⅴ','문제점 및 개선사항'));it.push(H2('1. 주요 문제점'));(c.issues||[]).forEach(t=>it.push(BL(t)));it.push(E(100));
+  it.push(H2('2. 해결 방안'));(c.solutions||[]).forEach(t=>it.push(BD(t)));it.push(E(100));
+  it.push(new Paragraph({children:[new PageBreak()]}));
+  it.push(H1('Ⅵ','향후 계획'));it.push(H2('1. 후속 사업 계획'));(c.followUpPlan||[]).forEach(t=>it.push(BD(t)));it.push(E(100));
+  it.push(H2('2. 성과 지속화'));(c.sustainability||[]).forEach(t=>it.push(BL(t)));it.push(E(100));
+  it.push(new Paragraph({children:[new PageBreak()]}));
+  it.push(H1('Ⅶ','종합 의견'));it.push(callout('종합 평가 및 의견',c.conclusion||'',C.teallt));it.push(E(130));
+  it.push(H2('향후 기대효과'));(c.futureEffect||[]).forEach(t=>it.push(BL(t)));
+  return it;
+}
+
+async function makeDocx(type, content, d) {
+  const cvr = cover(type, d);
+  const body = type === 'plan' ? buildPlan(content, d) : buildReport(content, d);
+  const doc = new Document({ sections:[{
+    properties:{ page:{ size:{width:PW,height:16838}, margin:{top:ML,right:ML,bottom:ML,left:ML} }},
+    headers:{ default:mkHdr(type, d.orgName) },
+    footers:{ default:mkFtr(d.projectName) },
+    children:[...cvr, ...body],
+  }]});
+  return Packer.toBlob(doc);
+}
+
+// ─ STATE ────────────────────────────────────────────────────
+let genDocs = {};
+let fdata = {};
+let hist = [];
+try { hist = JSON.parse(localStorage.getItem('gd_hist') || '[]'); } catch(e) {}
+
+// ─ UTILS ────────────────────────────────────────────────────
+const gv = id => document.getElementById(id)?.value?.trim() || '';
+const setP = (pct, lbl) => {
+  document.getElementById('pBar').style.width = pct + '%';
+  document.getElementById('pPct').textContent = pct + '%';
+  document.getElementById('pLabel').textContent = lbl;
+};
+const setL = (id, st) => { const el = document.getElementById(id); el.classList.remove('done','act','err'); if(st) el.classList.add(st); };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const today = () => new Date().toISOString().slice(0,10).replace(/-/g,'');
+
+function goPage(name, nav) {
+  document.querySelectorAll('.pg').forEach(p => p.classList.remove('on'));
+  const pg = document.getElementById('pg-' + name);
+  if (pg) pg.classList.add('on');
+  if (nav) { document.querySelectorAll('.nav').forEach(n => n.classList.remove('on')); nav.classList.add('on'); }
+  const titles = {
+    gen: ['문서 생성하기', ' — 사업 정보 입력 후 AI가 두 문서를 동시 생성합니다'],
+    res: ['생성 완료', ' — 문서를 다운로드하거나 내용을 미리 확인하세요'],
+    hist: ['생성 히스토리', ' — 이전에 생성한 문서를 확인합니다'],
+  };
+  const t = titles[name] || ['GovDoc AI', ''];
+  document.getElementById('tbTitle').textContent = t[0];
+  document.getElementById('tbSub').textContent = t[1];
+  if (name === 'hist') renderHist();
+}
+
+function resetNav() { document.querySelectorAll('.nav').forEach(n => n.classList.remove('on')); document.querySelectorAll('.nav')[0].classList.add('on'); }
+function setNav(i) { document.querySelectorAll('.nav').forEach(n => n.classList.remove('on')); document.querySelectorAll('.nav')[i].classList.add('on'); }
+
+function showErr(msg) {
+  const area = document.getElementById('errArea');
+  area.innerHTML = `<div class="err-box"><div><div class="err-title">⚠️ 오류 발생</div><div class="err-msg">${msg}</div></div></div>`;
+}
+function clearErr() { document.getElementById('errArea').innerHTML = ''; }
+
+// ─ MAIN GENERATION ──────────────────────────────────────────
+async function startGen() {
+  const d = {
+    projectName: gv('f-proj'), supervisor: gv('f-sup'), field: gv('f-field'),
+    department: gv('f-dept'), startDate: gv('f-start'), endDate: gv('f-end'),
+    budget: gv('f-budget'), orgName: gv('f-org'), purpose: gv('f-purpose'),
+    mainContent: gv('f-main'), kpi: gv('f-kpi'), additionalInfo: gv('f-add'),
+  };
+  if (!d.projectName || !d.supervisor || !d.startDate || !d.endDate || !d.purpose) {
+    showErr('필수 항목(사업명, 주관기관, 기간, 목적)을 모두 입력해주세요.');
+    return;
+  }
+  clearErr();
+  fdata = d; genDocs = {};
+  document.querySelectorAll('.pg').forEach(p => p.classList.remove('on'));
+  document.getElementById('pg-load').classList.add('on');
+  document.getElementById('tbTitle').textContent = 'AI 생성 중...';
+  document.getElementById('tbSub').textContent = ' — 잠시만 기다려 주세요';
+  ['l1','l2','l3','l4','l5','l6'].forEach(id => setL(id, ''));
+
+  try {
+    setL('l1','act'); setP(8,'입력 정보 분석 중...'); await sleep(300); setL('l1','done');
+
+    setL('l2','act'); setP(16,'사업계획서 AI 작성 중...');
+    const planC = await callAPI('plan', d);
+    setL('l2','done'); setP(42,'사업계획서 완료');
+
+    setL('l3','act'); setP(48,'사업결과보고서 AI 작성 중...');
+    const repC = await callAPI('report', d);
+    setL('l3','done'); setP(66,'결과보고서 완료');
+
+    setL('l4','act'); setP(72,'사업계획서 DOCX 변환 중...');
+    const planBlob = await makeDocx('plan', planC, d);
+    setL('l4','done'); setP(83,'');
+
+    setL('l5','act'); setP(87,'결과보고서 DOCX 변환 중...');
+    const repBlob = await makeDocx('report', repC, d);
+    setL('l5','done'); setP(95,'');
+
+    setL('l6','act');
+    saveHist(d, planC, repC);
+    await sleep(400); setL('l6','done'); setP(100,'완료!');
+
+    genDocs = {
+      plan: { content:planC, blob:planBlob, fname:`사업계획서_${d.projectName}_${today()}.docx` },
+      report: { content:repC, blob:repBlob, fname:`사업결과보고서_${d.projectName}_${today()}.docx` },
+    };
+    await sleep(500);
+    renderResult();
+  } catch(e) {
+    document.querySelectorAll('.pg').forEach(p => p.classList.remove('on'));
+    document.getElementById('pg-gen').classList.add('on');
+    resetNav();
+    document.getElementById('tbTitle').textContent = '문서 생성하기';
+    document.getElementById('tbSub').textContent = ' — 사업 정보 입력 후 AI가 두 문서를 동시 생성합니다';
+    showErr(e.message);
+  }
+}
+
+async function callAPI(docType, formData) {
+  const res = await fetch('/api/generate-content', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ docType, formData }),
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'AI 생성 실패');
+  return data.content;
+}
+
+function downloadDoc(type) {
+  const doc = genDocs[type];
+  if (!doc || !doc.blob) return;
+  const url = URL.createObjectURL(doc.blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = doc.fname; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─ RESULT RENDER ────────────────────────────────────────────
+function renderResult() {
+  document.getElementById('resSubtitle').textContent = `${fdata.projectName} — 사업계획서 · 사업결과보고서 2종`;
+  document.getElementById('pvPlanBody').innerHTML = buildPvHTML('plan', genDocs.plan.content);
+  document.getElementById('pvReportBody').innerHTML = buildPvHTML('report', genDocs.report.content);
+  document.querySelectorAll('.pg').forEach(p => p.classList.remove('on'));
+  document.getElementById('pg-res').classList.add('on');
+  document.getElementById('tbTitle').textContent = '생성 완료';
+  document.getElementById('tbSub').textContent = ' — 문서를 다운로드하거나 내용을 미리 확인하세요';
+  setNav(-1);
+}
+
+function buildPvHTML(type, c) {
+  if (!c) return '<p style="padding:16px;color:#888">내용 없음</p>';
+  const sec=(num,title,body)=>`<div class="pv-sec"><div class="pv-sh" onclick="this.parentElement.classList.toggle('open')"><div class="snum">${num}</div><div class="stitle">${title}</div><div class="stog">▾</div></div><div class="pv-sb">${body}</div></div>`;
+  const tx=v=>`<div class="pv-text">${v||''}</div>`;
+  const ls=a=>(!a||!a.length)?'':`<ul class="pv-list">${a.map(i=>`<li>${i}</li>`).join('')}</ul>`;
+  const ph=a=>(!a||!a.length)?'':`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">${a.map(p=>`<div style="background:#EFF6FF;border-radius:8px;padding:10px;border-left:3px solid #1B3A6B"><div style="font-size:12px;font-weight:700;color:#1B3A6B">${p.phase||''}</div><div style="font-size:10px;color:#3B82F6;margin:2px 0">${p.period||''} · ${p.owner||''}</div><div style="font-size:11px;color:#475569">${p.content||''}</div></div>`).join('')}</div>`;
+  const kp=a=>(!a||!a.length)?'':a.map(k=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fff;border-radius:7px;border:1px solid #E2E8F0;margin-bottom:5px;font-size:11px"><div style="flex:1;color:#334155">${k.item||''}</div><div style="font-weight:700;color:#0D7C6B;min-width:70px;text-align:center">${k.target||k.achieved||''}</div><div style="color:#94A3B8">${k.note||''}</div></div>`).join('');
+  if (type==='plan') return [sec('Ⅰ','사업 개요',tx(c.summary)),sec('Ⅱ','추진 배경 및 필요성',ls([...(c.background||[]),...(c.necessity||[])])),sec('Ⅲ','사업 목표',tx(c.vision)+'<br>'+ls(c.objectives)+'<br>'+kp(c.kpiPlan)),sec('Ⅳ','사업 범위 및 내용',ls([...(c.scope||[])])),sec('Ⅴ','추진 체계',ph(c.phases)),sec('Ⅵ','예산 계획',ls((c.budgetItems||[]).map(b=>`${b.item}: ${b.amount} (${b.ratio})`))),sec('Ⅶ','기대성과',ls([...(c.quantResults||[]),...(c.qualResults||[])])),sec('Ⅷ','위험관리',ls(c.risks))].join('');
+  return [sec('Ⅰ','사업 개요',tx(c.summary)),sec('Ⅱ','추진 경과',ph(c.phases)),sec('Ⅲ','주요 성과',kp(c.kpiResults)+'<br>'+ls(c.quantResults)),sec('Ⅳ','예산 집행',ls((c.budgetItems||[]).map(b=>`${b.item}: ${b.amount} (${b.ratio})`))),sec('Ⅴ','문제점·개선',ls([...(c.issues||[]),...(c.solutions||[])])),sec('Ⅵ','향후 계획',ls(c.followUpPlan)),sec('Ⅶ','종합 의견',tx(c.conclusion))].join('');
+}
+
+function togglePv(type) {
+  const el = document.getElementById('pv' + type.charAt(0).toUpperCase() + type.slice(1));
+  el.classList.toggle('open');
+  el.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+// ─ HISTORY ──────────────────────────────────────────────────
+function saveHist(d, planC, repC) {
+  const entry = { id:Date.now(), projectName:d.projectName, supervisor:d.supervisor, date:new Date().toLocaleDateString('ko-KR'), fdata:d, planContent:planC, repContent:repC };
+  hist.unshift(entry);
+  if (hist.length > 20) hist = hist.slice(0, 20);
+  try { localStorage.setItem('gd_hist', JSON.stringify(hist)); } catch(e) {}
+}
+
+function renderHist() {
+  const cont = document.getElementById('histCont');
+  if (!hist.length) {
+    cont.innerHTML = '<div class="hist-empty"><div style="font-size:42px;margin-bottom:10px">📂</div>아직 생성한 문서가 없습니다.</div>';
+    return;
+  }
+  cont.innerHTML = `<div class="hist-grid">${hist.map(h=>`
+    <div class="hc">
+      <div class="hc-title">${h.projectName}</div>
+      <div class="hc-meta">${h.supervisor||''} | ${h.date}</div>
+      <div class="hc-acts">
+        <button class="bsm bsm-ol" onclick="reDL(${h.id},'plan')">📋 계획서</button>
+        <button class="bsm bsm-ol" onclick="reDL(${h.id},'report')">📊 보고서</button>
+        <button class="bsm bsm-red" onclick="delH(${h.id})">🗑</button>
+      </div>
+    </div>`).join('')}</div>`;
+}
+
+async function reDL(id, type) {
+  const en = hist.find(h => h.id === id);
+  if (!en) return;
+  const c = type === 'plan' ? en.planContent : en.repContent;
+  try {
+    const blob = await makeDocx(type, c, en.fdata);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${type==='plan'?'사업계획서':'사업결과보고서'}_${en.projectName}_재다운로드.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) { alert('재다운로드 실패: ' + e.message); }
+}
+
+function delH(id) { if (!confirm('삭제하시겠습니까?')) return; hist=hist.filter(h=>h.id!==id); try{localStorage.setItem('gd_hist',JSON.stringify(hist));}catch(e){} renderHist(); }
+function clearHist() { if (!confirm('전체 삭제하시겠습니까?')) return; hist=[]; try{localStorage.setItem('gd_hist','[]');}catch(e){} renderHist(); }
+function resetF() { ['f-proj','f-sup','f-field','f-dept','f-start','f-end','f-budget','f-org','f-purpose','f-main','f-kpi','f-add'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); clearErr(); }
+</script>
+</body>
+</html>
